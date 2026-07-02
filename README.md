@@ -111,7 +111,7 @@ f1-chat/
 
 ## How It Works
 
-### Two types of tools: data tools and render tools
+### Three types of tools: data, render, and sandbox
 
 **Data tools** (`get_*`) fetch data and return a text summary to the model via `toModelOutput`. Use these for quick factual answers — "who won?", "when is qualifying?". No visualization is produced.
 
