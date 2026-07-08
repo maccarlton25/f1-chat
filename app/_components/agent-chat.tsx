@@ -14,8 +14,17 @@ import {
   PromptInputTextarea,
 } from "@/components/ai-elements/prompt-input";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  DEFAULT_EFFORT,
+  DEFAULT_MODEL_ID,
+  type Effort,
+  isEffort,
+  MODEL_CHOICE_KEY,
+  resolveModelOption,
+} from "@/lib/models";
 import { AgentMessage } from "./agent-message";
+import { ModelPicker } from "./model-picker";
 import { F1ZeroState } from "./f1/zero-state";
 
 const AGENT_NAME = "F1 Pit Wall";
@@ -57,7 +66,27 @@ export interface ZeroStateData {
 type AgentStatus = ReturnType<typeof useEveAgent>["status"];
 
 export function AgentChat({ zeroStateData }: { readonly zeroStateData?: ZeroStateData | null }) {
-  const agent = useEveAgent();
+  const [modelId, setModelId] = useState(DEFAULT_MODEL_ID);
+  const [effort, setEffort] = useState<Effort>(DEFAULT_EFFORT);
+
+  // Keep the latest choice in a ref so the stable prepareSend callback below
+  // always reads the current selection, even if captured once by the store.
+  const choiceRef = useRef({ modelId, effort });
+  choiceRef.current = { modelId, effort };
+
+  const agent = useEveAgent({
+    // Attach the chosen model + effort to every turn. The router in
+    // agent/model-router.ts reads this marker, then strips it from the prompt.
+    prepareSend: (input) => ({
+      ...input,
+      clientContext: {
+        ...(input.clientContext && typeof input.clientContext === "object" && !Array.isArray(input.clientContext)
+          ? input.clientContext
+          : {}),
+        [MODEL_CHOICE_KEY]: { id: choiceRef.current.modelId, effort: choiceRef.current.effort },
+      },
+    }),
+  });
   const isBusy = agent.status === "submitted" || agent.status === "streaming";
   const isEmpty = agent.data.messages.length === 0;
 
@@ -71,6 +100,25 @@ export function AgentChat({ zeroStateData }: { readonly zeroStateData?: ZeroStat
   useEffect(() => {
     localStorage.setItem("f1-show-tool-calls", String(showToolCalls));
   }, [showToolCalls]);
+
+  // Restore model + effort selection from localStorage on mount.
+  useEffect(() => {
+    const storedModel = localStorage.getItem("f1-model-id");
+    if (storedModel) setModelId(resolveModelOption(storedModel).id);
+    const storedEffort = localStorage.getItem("f1-effort");
+    if (isEffort(storedEffort)) setEffort(storedEffort);
+  }, []);
+
+  const handleModelChange = (id: string) => {
+    const resolved = resolveModelOption(id).id;
+    setModelId(resolved);
+    localStorage.setItem("f1-model-id", resolved);
+  };
+
+  const handleEffortChange = (next: Effort) => {
+    setEffort(next);
+    localStorage.setItem("f1-effort", next);
+  };
 
   const handleSubmit = async (message: PromptInputMessage) => {
     const text = message.text.trim();
@@ -164,6 +212,14 @@ export function AgentChat({ zeroStateData }: { readonly zeroStateData?: ZeroStat
 
       <div className="mx-auto w-full max-w-2xl shrink-0 px-4 pb-5 sm:px-6 pt-2 bg-background">
         <div className="w-full">{composer}</div>
+        <div className="mt-1.5 flex items-center px-1">
+          <ModelPicker
+            modelId={modelId}
+            effort={effort}
+            onModelChange={handleModelChange}
+            onEffortChange={handleEffortChange}
+          />
+        </div>
       </div>
     </main>
   );
