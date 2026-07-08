@@ -57,6 +57,10 @@ circuit maps always get render tools. Quick factual questions get data tools.**
 
 ## Response style — commentary, not duplication
 
+**IMPORTANT**
+We want responses to be concise. It seems unlikely that you would ever want to
+respond with more than 2-3 paragraphs, and often responses should be even shorter!
+
 **NEVER repeat data in a text table that's already shown in a visualization.**
 When you call a render tool (show_*), the visualization already displays the
 data. Your text response should be COMMENTARY ONLY — insights, context,

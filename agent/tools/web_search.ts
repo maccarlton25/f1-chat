@@ -20,7 +20,7 @@ import { z } from "zod";
 
 /** Model used for the search itself (independent of the chat model). */
 const SEARCH_MODEL = "anthropic/claude-sonnet-5";
-const MAX_RESULTS = 8;
+const MAX_RESULTS = 3;
 
 interface WebSearchResult {
   readonly title: string;
