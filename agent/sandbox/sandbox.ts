@@ -1,9 +1,12 @@
-import { defineSandbox } from "eve/sandbox";
-import { microsandbox } from "eve/sandbox/microsandbox";
+import { defaultBackend, defineSandbox } from "eve/sandbox";
 
 export default defineSandbox({
-  backend: microsandbox({
-    memoryMiB: 2048,
+  // Pick the best backend per environment: Vercel Sandbox on hosted Vercel,
+  // Docker → microsandbox → just-bash locally. A pinned microsandbox() backend
+  // fails on Vercel build containers (no /dev/kvm).
+  backend: defaultBackend({
+    vercel: { resources: { vcpus: 2 } },
+    microsandbox: { memoryMiB: 2048 },
   }),
   revalidationKey: () => "f1-python-v1",
   async bootstrap({ use }) {
@@ -35,9 +38,12 @@ export default defineSandbox({
     });
   },
   async onSession({ use }) {
-    await use({ networkPolicy: "deny-all" });
-
     const sandbox = await use();
+
+    // Lock down egress for the live session: analysis runs on data passed
+    // via dataJson, never the network. Bootstrap stays open so pip can install.
+    await sandbox.setNetworkPolicy("deny-all");
+
     await sandbox.run({ command: "mkdir -p /workspace/data /workspace/output" });
   },
 });
