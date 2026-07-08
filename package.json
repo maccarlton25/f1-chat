@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.8",
     "@radix-ui/react-use-controllable-state": "1.2.2",
     "@shikijs/core": "4.1.0",
     "@shikijs/engine-javascript": "4.1.0",
@@ -54,7 +55,9 @@
     "@open-observe/sdk": "file:../openobserve/packages/sdk"
   },
   "overrides": {
-    "ai": "^7.0.0"
+    "ai": "^7.0.0",
+    "@ai-sdk/provider": "4.0.2",
+    "@ai-sdk/provider-utils": "5.0.5"
   },
   "engines": {
     "node": "24.x"

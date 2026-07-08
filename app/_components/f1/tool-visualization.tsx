@@ -26,6 +26,7 @@ import { PositionHistoryChart } from "./position-history-chart";
 import { QualifyingBoard } from "./qualifying-board";
 import { TelemetryChart } from "./telemetry-chart";
 import { WeatherWidget } from "./weather-widget";
+import { WebSearchResults } from "./web-search-results";
 import { WeekendTimeline } from "./weekend-timeline";
 
 interface ToolVisualizationProps {
@@ -45,6 +46,7 @@ const VISUALIZED_TOOLS = new Set([
   "get_pit_stops",
   "get_weather",
   "get_position_history",
+  "web_search",
 ]);
 
 export function hasF1Visualization(toolName: string): boolean {
@@ -186,6 +188,16 @@ export function F1ToolVisualization({ toolName, output }: ToolVisualizationProps
           teamColour={data.teamColour as string}
           summary={data.summary as never}
           raceName={data.raceName as string}
+        />
+      );
+
+    case "web_search":
+      return (
+        <WebSearchResults
+          query={data.query as string}
+          results={(data.results as never) ?? []}
+          error={data.error as boolean}
+          message={data.message as string}
         />
       );
 
