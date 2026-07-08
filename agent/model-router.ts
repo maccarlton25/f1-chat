@@ -36,6 +36,54 @@ import {
 type GatewayModel = ReturnType<typeof gateway>;
 type CallOptions = Parameters<GatewayModel["doStream"]>[0];
 type Prompt = CallOptions["prompt"];
+type StreamResult = Awaited<ReturnType<GatewayModel["doStream"]>>;
+type StreamPart = StreamResult["stream"] extends ReadableStream<infer P> ? P : never;
+
+/**
+ * Minimum characters to accumulate before emitting a coalesced text-delta.
+ * Fast models (GLM, DeepSeek) emit hundreds of tiny deltas; eve persists one
+ * durable event per delta (~10ms each), which throttles throughput far below
+ * the gateway's rate. Batching deltas into ~this many chars cuts the event
+ * count ~10x while staying visually smooth.
+ */
+const COALESCE_CHARS = Number(process.env.F1_COALESCE ?? 48);
+
+/**
+ * Merge runs of consecutive text-delta parts into fewer, larger deltas.
+ * Non-text parts (reasoning, tool calls, finish) pass through untouched, and
+ * any pending text is flushed before them and at stream end so ordering and
+ * content are preserved exactly.
+ */
+function coalesceTextDeltas(stream: ReadableStream<StreamPart>): ReadableStream<StreamPart> {
+  let buffer = "";
+  let bufferId: string | null = null;
+  const flush = (controller: TransformStreamDefaultController<StreamPart>) => {
+    if (buffer && bufferId !== null) {
+      controller.enqueue({ type: "text-delta", id: bufferId, delta: buffer } as StreamPart);
+      buffer = "";
+      bufferId = null;
+    }
+  };
+  return stream.pipeThrough(
+    new TransformStream<StreamPart, StreamPart>({
+      transform(part, controller) {
+        const p = part as { type: string; id?: string; delta?: string };
+        if (p.type === "text-delta" && typeof p.delta === "string") {
+          if (bufferId !== null && p.id !== bufferId) flush(controller);
+          bufferId = p.id ?? bufferId;
+          buffer += p.delta;
+          if (buffer.length >= COALESCE_CHARS) flush(controller);
+          return;
+        }
+        flush(controller);
+        controller.enqueue(part);
+      },
+      flush(controller) {
+        flush(controller);
+      },
+    }),
+  );
+}
 
 const modelChoice = defineState<ModelChoice>("f1.model-choice", () => ({
   id: DEFAULT_MODEL_ID,
@@ -167,9 +215,10 @@ export function createModelRouter(): LanguageModel {
       const { target, options: delegated } = withChoice(options);
       return target.doGenerate(delegated);
     },
-    doStream: (options: CallOptions) => {
+    doStream: async (options: CallOptions) => {
       const { target, options: delegated } = withChoice(options);
-      return target.doStream(delegated);
+      const result = await target.doStream(delegated);
+      return { ...result, stream: coalesceTextDeltas(result.stream) };
     },
   };
 }
